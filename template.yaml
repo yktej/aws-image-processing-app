@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless image processing app with S3, Lambda, DynamoDB, and SNS
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs18.x
+    MemorySize: 512
+
+Resources:
+  ImageUploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:Put
+            Function: !GetAtt ImageProcessorFunction.Arn
+
+  ImageMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ImageMetadata
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAYPERREQUEST
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: ImageUploadNotifications
+
+  ImageProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: hello-world/
+      Layers:
+        - !Ref SharpLayer
+      Events:
+        S3Upload:
+          Type: S3
+          Properties:
+            Bucket: !Ref ImageUploadBucket
+            Events: s3:ObjectCreated:Put
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .jpg
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ImageUploadBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageMetadataTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificationTopic.TopicName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  SharpLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: sharp-layer
+      Description: Layer for Sharp image processing
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - nodejs18.x
+
+Outputs:
+  S3Bucket:
+    Value: !Ref ImageUploadBucket
+  DynamoDBTable:
+    Value: !Ref ImageMetadataTable
+  SNSTopic:
+    Value: !Ref NotificationTopic
+  LambdaFunction:
+    Value: !Ref ImageProcessorFunction
