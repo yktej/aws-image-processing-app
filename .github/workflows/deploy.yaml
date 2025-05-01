@@ -1,0 +1,47 @@
+name: Deploy SAM App to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Set up Python (for AWS SAM)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install AWS SAM CLI
+        run: |
+          pip install aws-sam-cli
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1 # change this to your region
+
+      - name: Install dependencies (Lambda code)
+        run: |
+          cd hello-world
+          npm install
+          cd ..
+
+      - name: Build SAM app
+        run: sam build
+
+      - name: Deploy SAM app
+        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name image-processing-app --capabilities CAPABILITY_IAM
