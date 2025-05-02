@@ -66,6 +66,9 @@ Resources:
                 - logs:CreateLogStream
                 - logs:PutLogEvents
               Resource: '*'
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref NotificationTopic
 
   SharpLayer:
     Type: AWS::Serverless::LayerVersion
